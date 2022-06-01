@@ -184,7 +184,7 @@ class Generic_UNet(SegmentationNetwork):
     def __init__(self, input_channels, base_num_features, num_classes, num_pool, num_conv_per_stage=2,
                  feat_map_mul_on_downscale=2, conv_op=nn.Conv2d,
                  norm_op=nn.BatchNorm2d, norm_op_kwargs=None,
-                 dropout_op=nn.Dropout2d, dropout_op_kwargs=None,
+                 dropout_op=nn.Dropout2d, dropout_op_kwargs=None, final_dropout_op_kwargs=None,
                  nonlin=nn.LeakyReLU, nonlin_kwargs=None, deep_supervision=True, dropout_in_localization=False,
                  final_nonlin=softmax_helper, weightInitializer=InitWeights_He(1e-2), pool_op_kernel_sizes=None,
                  conv_kernel_sizes=None,
@@ -208,6 +208,8 @@ class Generic_UNet(SegmentationNetwork):
             nonlin_kwargs = {'negative_slope': 1e-2, 'inplace': True}
         if dropout_op_kwargs is None:
             dropout_op_kwargs = {'p': 0.5, 'inplace': True}
+        if final_dropout_op_kwargs is None:
+            final_dropout_op_kwargs = {'p': 0.5, 'inplace': True}
         if norm_op_kwargs is None:
             norm_op_kwargs = {'eps': 1e-5, 'affine': True, 'momentum': 0.1}
 
@@ -216,6 +218,7 @@ class Generic_UNet(SegmentationNetwork):
         self.nonlin = nonlin
         self.nonlin_kwargs = nonlin_kwargs
         self.dropout_op_kwargs = dropout_op_kwargs
+        self.final_dropout_op_kwargs = final_dropout_op_kwargs
         self.norm_op_kwargs = norm_op_kwargs
         self.weightInitializer = weightInitializer
         self.conv_op = conv_op
@@ -314,7 +317,7 @@ class Generic_UNet(SegmentationNetwork):
                               self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs, self.nonlin,
                               self.nonlin_kwargs, first_stride, basic_block=basic_block),
             StackedConvLayers(output_features, final_num_features, 1, self.conv_op, self.conv_kwargs,
-                              self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs, self.nonlin,
+                              self.norm_op, self.norm_op_kwargs, self.dropout_op, self.final_dropout_op_kwargs, self.nonlin,
                               self.nonlin_kwargs, basic_block=basic_block)))
 
         # if we don't want to do dropout in the localization pathway then we set the dropout prob to zero here

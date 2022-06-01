@@ -14,6 +14,7 @@
 
 
 import argparse
+import wandb
 from batchgenerators.utilities.file_and_folder_operations import *
 from nnunet.run.default_configuration import get_default_configuration
 from nnunet.paths import default_plans_identifier
@@ -91,7 +92,7 @@ def main():
                              'Optional. Beta. Use with caution.')
 
     args = parser.parse_args()
-
+    wandb.init(project="nnUNet-kidney", config=args)
     task = args.task
     fold = args.fold
     network = args.network

@@ -15,6 +15,7 @@
 
 import argparse
 import torch
+import wandb
 
 from nnunet.inference.predict import predict_from_folder
 from nnunet.paths import default_plans_identifier, network_training_output_dir, default_cascade_trainer, default_trainer
@@ -121,8 +122,12 @@ def main():
                         help='Predictions are done with mixed precision by default. This improves speed and reduces '
                              'the required vram. If you want to disable mixed precision you can set this flag. Note '
                              'that yhis is not recommended (mixed precision is ~2x faster!)')
+    parser.add_argument("--train_mode", required=False, default=False, action="store_true",
+                        help="Set this flag if model should be used in train mode")
 
     args = parser.parse_args()
+    
+    wandb.init(project="nnUNet-kidney-inf", config=args)
     input_folder = args.input_folder
     output_folder = args.output_folder
     part_id = args.part_id
@@ -145,6 +150,7 @@ def main():
     cascade_trainer_class_name = args.cascade_trainer_class_name
 
     task_name = args.task_name
+    train_mode = args.train_mode
 
     if not task_name.startswith("Task"):
         task_id = int(task_name)
@@ -199,7 +205,7 @@ def main():
                             num_threads_preprocessing, num_threads_nifti_save, None, part_id, num_parts, not disable_tta,
                             overwrite_existing=overwrite_existing, mode=mode, overwrite_all_in_gpu=all_in_gpu,
                             mixed_precision=not args.disable_mixed_precision,
-                            step_size=step_size)
+                            step_size=step_size, train_mode=train_mode)
         lowres_segmentations = lowres_output_folder
         torch.cuda.empty_cache()
         print("3d_lowres done")
@@ -218,7 +224,7 @@ def main():
                         num_threads_nifti_save, lowres_segmentations, part_id, num_parts, not disable_tta,
                         overwrite_existing=overwrite_existing, mode=mode, overwrite_all_in_gpu=all_in_gpu,
                         mixed_precision=not args.disable_mixed_precision,
-                        step_size=step_size, checkpoint_name=args.chk)
+                        step_size=step_size, checkpoint_name=args.chk, train_mode=train_mode)
 
 
 if __name__ == "__main__":

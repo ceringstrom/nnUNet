@@ -60,7 +60,7 @@ def predict_next_stage(trainer, stage_to_be_predicted_folder):
     results = []
 
     for pat in trainer.dataset_val.keys():
-        print(pat)
+        # print(pat)
         data_file = trainer.dataset_val[pat]['data_file']
         data_preprocessed = np.load(data_file)['data'][:-1]
 

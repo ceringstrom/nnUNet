@@ -272,8 +272,10 @@ class GenericPreprocessor(object):
                                                         " has modalities"
 
         for c in range(len(data)):
+            print("its still lopping")
             scheme = self.normalization_scheme_per_modality[c]
             if scheme == "CT":
+                print("CT")
                 # clip to lb and ub from train data foreground and use foreground mn and sd from training data
                 assert self.intensityproperties is not None, "ERROR: if there is a CT then we need intensity properties"
                 mean_intensity = self.intensityproperties[c]['mean']
@@ -285,6 +287,7 @@ class GenericPreprocessor(object):
                 if use_nonzero_mask[c]:
                     data[c][seg[-1] < 0] = 0
             elif scheme == "CT2":
+                print("CT2")
                 # clip to lb and ub from train data foreground, use mn and sd form each case for normalization
                 assert self.intensityproperties is not None, "ERROR: if there is a CT then we need intensity properties"
                 lower_bound = self.intensityproperties[c]['percentile_00_5']
@@ -298,11 +301,23 @@ class GenericPreprocessor(object):
                     data[c][seg[-1] < 0] = 0
             else:
                 if use_nonzero_mask[c]:
+                    print("unique")
+                    print(np.unique(seg))
                     mask = seg[-1] >= 0
                 else:
                     mask = np.ones(seg.shape[1:], dtype=bool)
-                data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
+                print("I WAS RIGHT, IT GOES HERE")
+                print(use_nonzero_mask)
+                # print(data.shape)
+                # print(seg.shape)
+                # print(mask.shape)
+                # print("maxmin before")
+                # print(np.max(data), np.min(data))
+                # data[c][mask] = data[c][mask] / 255
+                # data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
                 data[c][mask == 0] = 0
+                # print("maxmin")
+                # print(np.max(data), np.min(data))
         return data, seg, properties
 
     def preprocess_test_case(self, data_files, target_spacing, seg_file=None, force_separate_z=None):
@@ -348,6 +363,10 @@ class GenericPreprocessor(object):
         properties['class_locations'] = class_locs
 
         print("saving: ", os.path.join(output_folder_stage, "%s.npz" % case_identifier))
+        print("ADD DATA")
+        print(all_data.shape)
+        print(np.max(all_data))
+        print(np.min(all_data))
         np.savez_compressed(os.path.join(output_folder_stage, "%s.npz" % case_identifier),
                             data=all_data.astype(np.float32))
         with open(os.path.join(output_folder_stage, "%s.pkl" % case_identifier), 'wb') as f:
@@ -471,7 +490,7 @@ class Preprocessor3DDifferentResampling(GenericPreprocessor):
                     mask = seg[-1] >= 0
                 else:
                     mask = np.ones(seg.shape[1:], dtype=bool)
-                data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
+                # data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
                 data[c][mask == 0] = 0
         return data, seg, properties
 
@@ -565,7 +584,7 @@ class Preprocessor3DBetterResampling(GenericPreprocessor):
                     mask = seg[-1] >= 0
                 else:
                     mask = np.ones(seg.shape[1:], dtype=bool)
-                data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
+                # data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
                 data[c][mask == 0] = 0
         return data, seg, properties
 
@@ -661,13 +680,23 @@ class PreprocessorFor2D(GenericPreprocessor):
                 if use_nonzero_mask[c]:
                     data[c][seg[-1] < 0] = 0
             else:
+                # print("OOPS THERES ANOTHER")
+                # print(use_nonzero_mask)
                 if use_nonzero_mask[c]:
                     mask = seg[-1] >= 0
                 else:
                     mask = np.ones(seg.shape[1:], dtype=bool)
-                data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
+                # data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
+                # data[c][mask] = data[c][mask] / 255
+                # print(np.max(data[c]), np.min(data[c]))
                 data[c][mask == 0] = 0
-        print("normalization done")
+                
+                # print(np.max(data[c]), np.min(data[c]))
+
+
+                # print(np.unique(seg))
+                # print(np.unique(mask))
+        # print("normalization done")
         return data, seg, properties
 
 
@@ -746,7 +775,7 @@ class PreprocessorFor3D_NoResampling(GenericPreprocessor):
                     mask = seg[-1] >= 0
                 else:
                     mask = np.ones(seg.shape[1:], dtype=bool)
-                data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
+                # data[c][mask] = (data[c][mask] - data[c][mask].mean()) / (data[c][mask].std() + 1e-8)
                 data[c][mask == 0] = 0
         return data, seg, properties
 

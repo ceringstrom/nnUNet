@@ -1,0 +1,38 @@
+{
+    "os": "Linux-3.10.0-1160.45.1.el7.x86_64-x86_64-with-glibc2.10",
+    "python": "3.8.3",
+    "heartbeatAt": "2022-01-20T02:18:24.863421",
+    "startedAt": "2022-01-20T02:17:14.422048",
+    "docker": null,
+    "gpu": "Tesla V100-SXM2-16GB",
+    "gpu_count": 4,
+    "cpu_count": 24,
+    "cuda": "10.2.89",
+    "args": [
+        "-i",
+        "/arc/project/st-rohling-1/data/kidney/nnUNet_data/reviewed_data/raw_data_mix/nnUNet_raw_data/Task002_KidneyRegions/imagesTs",
+        "-o",
+        "/scratch/st-rohling-1/nnUNet/reviewed_data/results_mix_none/BESTTEST/regions_nifty_other",
+        "-t",
+        "2",
+        "-m",
+        "2d",
+        "-f",
+        "0",
+        "-chk",
+        "model_best",
+        "--train_mode"
+    ],
+    "state": "running",
+    "program": "monte_carlo.py",
+    "codePath": "nnunet/inference/monte_carlo.py",
+    "git": {
+        "remote": "https://github.com/ceringstrom/nnUNet.git",
+        "commit": "e29f7c04f3c5458033ee522ad6145db780d3f510"
+    },
+    "email": null,
+    "root": "/scratch/st-rohling-1/nnUNet/nnUNet",
+    "host": "se061",
+    "username": "cering",
+    "executable": "/build/miniconda3/bin/python"
+}

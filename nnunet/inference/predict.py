@@ -16,6 +16,7 @@
 import argparse
 from copy import deepcopy
 from typing import Tuple, Union, List
+import time
 
 import numpy as np
 from batchgenerators.augmentations.utils import resize_segmentation
@@ -67,7 +68,6 @@ def preprocess_save_to_queue(preprocess_fn, q, list_of_lists, output_files, segs
             patching system python code. We circumvent that problem here by saving softmax_pred to a npy file that will 
             then be read (and finally deleted) by the Process. save_segmentation_nifti_from_softmax can take either 
             filename or np.ndarray and will handle this automatically"""
-            print(d.shape)
             if np.prod(d.shape) > (2e9 / 4 * 0.85):  # *0.85 just to be save, 4 because float32 is 4 bytes
                 print(
                     "This output is too large for python process-process communication. "
@@ -131,7 +131,7 @@ def preprocess_multithreaded(trainer, list_of_lists, output_files, num_processes
 def predict_cases(model, list_of_lists, output_filenames, folds, save_npz, num_threads_preprocessing,
                   num_threads_nifti_save, segs_from_prev_stage=None, do_tta=True, mixed_precision=True, overwrite_existing=False,
                   all_in_gpu=False, step_size=0.5, checkpoint_name="model_final_checkpoint",
-                  segmentation_export_kwargs: dict = None):
+                  segmentation_export_kwargs: dict = None, train_mode: bool = False):
     """
     :param segmentation_export_kwargs:
     :param model: folder where the model is saved, must contain fold_x subfolders
@@ -180,8 +180,8 @@ def predict_cases(model, list_of_lists, output_filenames, folds, save_npz, num_t
     torch.cuda.empty_cache()
 
     print("loading parameters for folds,", folds)
+    t = time.time()
     trainer, params = load_model_and_checkpoint_files(model, folds, mixed_precision=mixed_precision, checkpoint_name=checkpoint_name)
-
     if segmentation_export_kwargs is None:
         if 'segmentation_export_params' in trainer.plans.keys():
             force_separate_z = trainer.plans['segmentation_export_params']['force_separate_z']
@@ -216,7 +216,7 @@ def predict_cases(model, list_of_lists, output_filenames, folds, save_npz, num_t
             softmax.append(trainer.predict_preprocessed_data_return_seg_and_softmax(
                 d, do_mirroring=do_tta, mirror_axes=trainer.data_aug_params['mirror_axes'], use_sliding_window=True,
                 step_size=step_size, use_gaussian=True, all_in_gpu=all_in_gpu,
-                mixed_precision=mixed_precision)[1][None])
+                mixed_precision=mixed_precision, train_mode=train_mode)[1][None])
 
         softmax = np.vstack(softmax)
         softmax_mean = np.mean(softmax, 0)
@@ -225,7 +225,7 @@ def predict_cases(model, list_of_lists, output_filenames, folds, save_npz, num_t
         if transpose_forward is not None:
             transpose_backward = trainer.plans.get('transpose_backward')
             softmax_mean = softmax_mean.transpose([0] + [i + 1 for i in transpose_backward])
-
+        print("shape", softmax_mean.shape)
         if save_npz:
             npz_file = output_filename[:-7] + ".npz"
         else:
@@ -280,6 +280,7 @@ def predict_cases(model, list_of_lists, output_filenames, folds, save_npz, num_t
               "consolidate_folds in the output folder of the model first!\nThe folder you need to run this in is "
               "%s" % model)
 
+    print(time.time()-t)
     pool.close()
     pool.join()
 
@@ -580,7 +581,7 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
                         part_id: int, num_parts: int, tta: bool, mixed_precision: bool = True,
                         overwrite_existing: bool = True, mode: str = 'normal', overwrite_all_in_gpu: bool = None,
                         step_size: float = 0.5, checkpoint_name: str = "model_final_checkpoint",
-                        segmentation_export_kwargs: dict = None):
+                        train_mode: bool = False, segmentation_export_kwargs: dict = None):
     """
         here we use the standard naming scheme to generate list_of_lists and output_files needed by predict_cases
 
@@ -599,6 +600,7 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
     :param overwrite_existing: if not None then it will be overwritten with whatever is in there. None is default (no overwrite)
     :return:
     """
+    print("folder predict", train_mode, mode)
     maybe_mkdir_p(output_folder)
     shutil.copy(join(model, 'plans.pkl'), output_folder)
 
@@ -632,7 +634,7 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
                              save_npz, num_threads_preprocessing, num_threads_nifti_save, lowres_segmentations, tta,
                              mixed_precision=mixed_precision, overwrite_existing=overwrite_existing, all_in_gpu=all_in_gpu,
                              step_size=step_size, checkpoint_name=checkpoint_name,
-                             segmentation_export_kwargs=segmentation_export_kwargs)
+                             segmentation_export_kwargs=segmentation_export_kwargs, train_mode=train_mode)
     elif mode == "fast":
         if overwrite_all_in_gpu is None:
             all_in_gpu = True
@@ -733,6 +735,7 @@ if __name__ == "__main__":
                              'that yhis is not recommended (mixed precision is ~2x faster!)')
 
     args = parser.parse_args()
+    print("predict script")
     input_folder = args.input_folder
     output_folder = args.output_folder
     part_id = args.part_id

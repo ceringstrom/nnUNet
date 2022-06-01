@@ -27,6 +27,8 @@ from nnunet.training.data_augmentation.downsampling import DownsampleSegForDSTra
 from nnunet.training.data_augmentation.pyramid_augmentations import MoveSegAsOneHotToData, \
     ApplyRandomBinaryOperatorTransform, \
     RemoveRandomConnectedComponentFromOneHotEncodingTransform
+from nnunet.training.data_augmentation.new_data_transforms import ShadowTransform, UsZoomTransform, NormalizeTransform, \
+    GainTransform, DepthTransform
 
 try:
     from batchgenerators.dataloading.nondet_multi_threaded_augmenter import NonDetMultiThreadedAugmenter
@@ -41,7 +43,7 @@ def get_moreDA_augmentation(dataloader_train, dataloader_val, patch_size, params
                             classes=None, pin_memory=True, regions=None,
                             use_nondetMultiThreadedAugmenter: bool = False):
     assert params.get('mirror') is None, "old version of params, use new keyword do_mirror"
-
+    print(params)
     tr_transforms = []
 
     if params.get("selected_data_channels") is not None:
@@ -56,6 +58,21 @@ def get_moreDA_augmentation(dataloader_train, dataloader_val, patch_size, params
         tr_transforms.append(Convert3DTo2DTransform())
     else:
         ignore_axes = None
+
+    if params.get("do_us_zoom"):
+        tr_transforms.append(UsZoomTransform(p_per_sample=params.get("p_us_zoom"), zoom=params.get("us_zoom")))
+
+    if params.get("do_shadow"):
+        tr_transforms.append(ShadowTransform(p_per_sample=params.get("p_shadow")))
+
+    if params.get("do_depth"):
+        tr_transforms.append(DepthTransform(p_per_sample=params.get("p_depth")))
+
+    if params.get("do_tgc"):
+        tr_transforms.append(GainTransform(p_per_sample=params.get("p_tgc")))
+
+    if params.get("do_norm"):
+        tr_transforms.append(NormalizeTransform())  
 
     tr_transforms.append(SpatialTransform(
         patch_size, patch_center_dist_from_border=None,
@@ -166,6 +183,9 @@ def get_moreDA_augmentation(dataloader_train, dataloader_val, patch_size, params
         val_transforms.append(DataChannelSelectionTransform(params.get("selected_data_channels")))
     if params.get("selected_seg_channels") is not None:
         val_transforms.append(SegChannelSelectionTransform(params.get("selected_seg_channels")))
+
+    if params.get("do_norm"):
+        val_transforms.append(NormalizeTransform())  
 
     if params.get("move_last_seg_chanel_to_data") is not None and params.get("move_last_seg_chanel_to_data"):
         val_transforms.append(MoveSegAsOneHotToData(1, params.get("all_segmentation_labels"), 'seg', 'data'))

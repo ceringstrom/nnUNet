@@ -31,6 +31,7 @@ import numpy as np
 from torch.optim import lr_scheduler
 import matplotlib.pyplot as plt
 import sys
+import wandb
 from collections import OrderedDict
 import torch.backends.cudnn as cudnn
 from abc import abstractmethod
@@ -209,7 +210,7 @@ class NetworkTrainer(object):
                 ax.plot(x_values, self.all_val_losses_tr_mode, color='g', ls='-', label="loss_val, train=True")
             if len(self.all_val_eval_metrics) == len(x_values):
                 ax2.plot(x_values, self.all_val_eval_metrics, color='g', ls='--', label="evaluation metric")
-
+            
             ax.set_xlabel("epoch")
             ax.set_ylabel("loss")
             ax2.set_ylabel("evaluation metric")
@@ -434,6 +435,7 @@ class NetworkTrainer(object):
             self.initialize(True)
 
         while self.epoch < self.max_num_epochs:
+            print("EPOCH: {}".format(self.epoch))
             self.print_to_log_file("\nepoch: ", self.epoch)
             epoch_start_time = time()
             train_losses_epoch = []
@@ -457,6 +459,7 @@ class NetworkTrainer(object):
 
             self.all_tr_losses.append(np.mean(train_losses_epoch))
             self.print_to_log_file("train loss : %.4f" % self.all_tr_losses[-1])
+            wandb.log({"train_loss": self.all_tr_losses[-1]})
 
             with torch.no_grad():
                 # validation with train=False
@@ -477,10 +480,13 @@ class NetworkTrainer(object):
                         val_losses.append(l)
                     self.all_val_losses_tr_mode.append(np.mean(val_losses))
                     self.print_to_log_file("validation loss (train=True): %.4f" % self.all_val_losses_tr_mode[-1])
+                    wandb.log({"train_loss": self.all_val_losses_tr_mode[-1]})
 
             self.update_train_loss_MA()  # needed for lr scheduler and stopping of training
-
             continue_training = self.on_epoch_end()
+
+            if len(self.all_val_eval_metrics) > 0:
+                wandb.log({"val_eval_metric": self.all_val_eval_metrics[-1]})
 
             epoch_end_time = time()
 
@@ -510,6 +516,7 @@ class NetworkTrainer(object):
                 self.lr_scheduler.step(self.train_loss_MA)
             else:
                 self.lr_scheduler.step(self.epoch + 1)
+        wandb.log({"train_loss": self.optimizer.param_groups[0]['lr']})
         self.print_to_log_file("lr is now (scheduler) %s" % str(self.optimizer.param_groups[0]['lr']))
 
     def maybe_save_checkpoint(self):
@@ -613,6 +620,8 @@ class NetworkTrainer(object):
 
         self.update_eval_criterion_MA()
 
+
+
         continue_training = self.manage_patience()
         return continue_training
 
@@ -640,8 +649,10 @@ class NetworkTrainer(object):
         if self.fp16:
             with autocast():
                 output = self.network(data)
+                
+                l = self.loss(output, target, data)
+                # l = self.loss(output, target)
                 del data
-                l = self.loss(output, target)
 
             if do_backprop:
                 self.amp_grad_scaler.scale(l).backward()
@@ -649,8 +660,9 @@ class NetworkTrainer(object):
                 self.amp_grad_scaler.update()
         else:
             output = self.network(data)
+            l = self.loss(output, target, data)
+            # l = self.loss(output, target)
             del data
-            l = self.loss(output, target)
 
             if do_backprop:
                 l.backward()

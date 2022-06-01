@@ -34,7 +34,7 @@ from nnunet.postprocessing.connected_components import determine_postprocessing
 from nnunet.training.data_augmentation.default_data_augmentation import default_3D_augmentation_params, \
     default_2D_augmentation_params, get_default_augmentation, get_patch_size
 from nnunet.training.dataloading.dataset_loading import load_dataset, DataLoader3D, DataLoader2D, unpack_dataset
-from nnunet.training.loss_functions.dice_loss import DC_and_CE_loss
+from nnunet.training.loss_functions.dice_loss import DC_and_CE_loss, DC_and_HD_loss, DC_and_Speckle_loss
 from nnunet.training.network_training.network_trainer import NetworkTrainer
 from nnunet.utilities.nd_softmax import softmax_helper
 from nnunet.utilities.tensor_utilities import sum_tensor
@@ -106,6 +106,8 @@ class nnUNetTrainer(NetworkTrainer):
 
         self.batch_dice = batch_dice
         self.loss = DC_and_CE_loss({'batch_dice': self.batch_dice, 'smooth': 1e-5, 'do_bg': False}, {})
+        # self.loss = DC_and_CE_loss({'batch_dice': self.batch_dice, 'smooth': 1e-5, 'do_bg': False}, {})
+        # self.loss = DC_and_HD_loss({'batch_dice': self.batch_dice, 'smooth': 1e-5, 'do_bg': False}, {})
 
         self.online_eval_foreground_dc = []
         self.online_eval_tp = []
@@ -165,7 +167,9 @@ class nnUNetTrainer(NetworkTrainer):
             self.do_dummy_2D_aug = False
             if max(self.patch_size) / min(self.patch_size) > 1.5:
                 default_2D_augmentation_params['rotation_x'] = (-15. / 360 * 2. * np.pi, 15. / 360 * 2. * np.pi)
+            print("here")
             self.data_aug_params = default_2D_augmentation_params
+            print(self.data_aug_params)
         self.data_aug_params["mask_was_used_for_normalization"] = self.use_mask_for_norm
 
         if self.do_dummy_2D_aug:
@@ -201,6 +205,7 @@ class nnUNetTrainer(NetworkTrainer):
 
         self.process_plans(self.plans)
 
+        print("Setting up da params")
         self.setup_DA_params()
 
         if training:
@@ -487,7 +492,8 @@ class nnUNetTrainer(NetworkTrainer):
                                                          use_sliding_window: bool = True, step_size: float = 0.5,
                                                          use_gaussian: bool = True, pad_border_mode: str = 'constant',
                                                          pad_kwargs: dict = None, all_in_gpu: bool = False,
-                                                         verbose: bool = True, mixed_precision: bool = True) -> Tuple[np.ndarray, np.ndarray]:
+                                                         verbose: bool = True, mixed_precision: bool = True,
+                                                         train_mode: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         :param data:
         :param do_mirroring:
@@ -515,7 +521,12 @@ class nnUNetTrainer(NetworkTrainer):
         assert isinstance(self.network, tuple(valid))
 
         current_mode = self.network.training
-        self.network.eval()
+        if train_mode:
+            print("TRAIN \n TRAIN \n TRAIN")
+            self.network.train()
+        else:
+            print("eval \n eval \n eval")
+            self.network.eval()
         ret = self.network.predict_3D(data, do_mirroring=do_mirroring, mirror_axes=mirror_axes,
                                       use_sliding_window=use_sliding_window, step_size=step_size,
                                       patch_size=self.patch_size, regions_class_order=self.regions_class_order,
@@ -591,7 +602,7 @@ class nnUNetTrainer(NetworkTrainer):
                     (save_softmax and not isfile(join(output_folder, fname + ".npz"))):
                 data = np.load(self.dataset[k]['data_file'])['data']
 
-                print(k, data.shape)
+                # print(k, data.shape)
                 data[-1][data[-1] == -1] = 0
 
                 softmax_pred = self.predict_preprocessed_data_return_seg_and_softmax(data[:-1],

@@ -18,6 +18,7 @@ from typing import Tuple
 
 import numpy as np
 import torch
+import wandb
 from nnunet.training.data_augmentation.data_augmentation_moreDA import get_moreDA_augmentation
 from nnunet.training.loss_functions.deep_supervision import MultipleOutputLoss2
 from nnunet.utilities.to_torch import maybe_to_torch, to_cuda
@@ -148,17 +149,19 @@ class nnUNetTrainerV2(nnUNetTrainer):
             norm_op = nn.InstanceNorm2d
 
         norm_op_kwargs = {'eps': 1e-5, 'affine': True}
-        dropout_op_kwargs = {'p': 0, 'inplace': True}
+        dropout_op_kwargs = {'p': 0.0, 'inplace': True}
+        final_dropout_op_kwargs = {'p': 0.2, 'inplace': True}
         net_nonlin = nn.LeakyReLU
         net_nonlin_kwargs = {'negative_slope': 1e-2, 'inplace': True}
         self.network = Generic_UNet(self.num_input_channels, self.base_num_features, self.num_classes,
                                     len(self.net_num_pool_op_kernel_sizes),
                                     self.conv_per_stage, 2, conv_op, norm_op, norm_op_kwargs, dropout_op,
-                                    dropout_op_kwargs,
+                                    dropout_op_kwargs, final_dropout_op_kwargs,
                                     net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
                                     self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True)
         if torch.cuda.is_available():
             self.network.cuda()
+        wandb.watch(self.network, log_freq=100)
         self.network.inference_apply_nonlin = softmax_helper
 
     def initialize_optimizer_and_scheduler(self):
@@ -202,7 +205,8 @@ class nnUNetTrainerV2(nnUNetTrainer):
                                                          use_sliding_window: bool = True, step_size: float = 0.5,
                                                          use_gaussian: bool = True, pad_border_mode: str = 'constant',
                                                          pad_kwargs: dict = None, all_in_gpu: bool = False,
-                                                         verbose: bool = True, mixed_precision=True) -> Tuple[np.ndarray, np.ndarray]:
+                                                         verbose: bool = True, mixed_precision=True,
+                                                         train_mode: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         We need to wrap this because we need to enforce self.network.do_ds = False for prediction
         """
@@ -216,7 +220,8 @@ class nnUNetTrainerV2(nnUNetTrainer):
                                                                        pad_border_mode=pad_border_mode,
                                                                        pad_kwargs=pad_kwargs, all_in_gpu=all_in_gpu,
                                                                        verbose=verbose,
-                                                                       mixed_precision=mixed_precision)
+                                                                       mixed_precision=mixed_precision,
+                                                                       train_mode=train_mode)
         self.network.do_ds = ds
         return ret
 
@@ -245,8 +250,8 @@ class nnUNetTrainerV2(nnUNetTrainer):
         if self.fp16:
             with autocast():
                 output = self.network(data)
-                del data
                 l = self.loss(output, target)
+                del data
 
             if do_backprop:
                 self.amp_grad_scaler.scale(l).backward()
@@ -256,8 +261,8 @@ class nnUNetTrainerV2(nnUNetTrainer):
                 self.amp_grad_scaler.update()
         else:
             output = self.network(data)
+            l = self.loss(output, target, data)
             del data
-            l = self.loss(output, target)
 
             if do_backprop:
                 l.backward()
@@ -362,6 +367,7 @@ class nnUNetTrainerV2(nnUNetTrainer):
                     default_2D_augmentation_params["elastic_deform_sigma"]
                 self.data_aug_params["rotation_x"] = default_2D_augmentation_params["rotation_x"]
         else:
+            print("2CDDDDDD")
             self.do_dummy_2D_aug = False
             if max(self.patch_size) / min(self.patch_size) > 1.5:
                 default_2D_augmentation_params['rotation_x'] = (-15. / 360 * 2. * np.pi, 15. / 360 * 2. * np.pi)
@@ -389,6 +395,7 @@ class nnUNetTrainerV2(nnUNetTrainer):
         self.data_aug_params['patch_size_for_spatialtransform'] = patch_size_for_spatialtransform
 
         self.data_aug_params["num_cached_per_thread"] = 2
+        print(self.data_aug_params)
 
     def maybe_update_lr(self, epoch=None):
         """

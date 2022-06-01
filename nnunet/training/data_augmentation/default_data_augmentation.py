@@ -87,7 +87,23 @@ default_3D_augmentation_params = {
 
     "num_threads": 12 if 'nnUNet_n_proc_DA' not in os.environ else int(os.environ['nnUNet_n_proc_DA']),
     "num_cached_per_thread": 1,
-}
+
+    "do_us_zoom": False,
+    "p_us_zoom": 0.15,
+    "us_zoom": 0.5,
+
+    "do_shadow": False,
+    "p_shadow": 0.15,
+
+    "do_depth": False,
+    "p_depth": 0.15,
+
+    "do_tgc": False,
+    "p_tgc": 0.15,
+
+    "do_norm": True
+    }
+
 
 default_2D_augmentation_params = deepcopy(default_3D_augmentation_params)
 

@@ -16,6 +16,8 @@
 import torch
 from nnunet.training.loss_functions.TopK_loss import TopKLoss
 from nnunet.training.loss_functions.crossentropy import RobustCrossEntropyLoss
+from nnunet.training.loss_functions.hausdorff_loss import HausdorffLoss
+from nnunet.training.loss_functions.speckle_loss import SpeckleLoss
 from nnunet.utilities.nd_softmax import softmax_helper
 from nnunet.utilities.tensor_utilities import sum_tensor
 from torch import nn
@@ -120,26 +122,40 @@ def get_tp_fp_fn_tn(net_output, gt, axes=None, mask=None, square=False):
             gt = gt.view((shp_y[0], 1, *shp_y[1:]))
 
         if all([i == j for i, j in zip(net_output.shape, gt.shape)]):
+            # print("all")
             # if this is the case then gt is probably already a one hot encoding
             y_onehot = gt
         else:
+            # print("else")
             gt = gt.long()
+            # print("Gt")
             y_onehot = torch.zeros(shp_x)
+            # print("one hot")
             if net_output.device.type == "cuda":
+                # print("gonna do one hot")
                 y_onehot = y_onehot.cuda(net_output.device.index)
+                # print("after hottin")
             y_onehot.scatter_(1, gt, 1)
-
+            # print("one hot")
+    # print("net shapes")
+    # print(net_output.shape)
+    # print(y_onehot.shape)
     tp = net_output * y_onehot
     fp = net_output * (1 - y_onehot)
     fn = (1 - net_output) * y_onehot
     tn = (1 - net_output) * (1 - y_onehot)
+    # print("end of stuff")
+    # print(mask is None)
+    # print(mask.shape)
 
     if mask is not None:
+        # print("this weird stuff")
         tp = torch.stack(tuple(x_i * mask[:, 0] for x_i in torch.unbind(tp, dim=1)), dim=1)
         fp = torch.stack(tuple(x_i * mask[:, 0] for x_i in torch.unbind(fp, dim=1)), dim=1)
         fn = torch.stack(tuple(x_i * mask[:, 0] for x_i in torch.unbind(fn, dim=1)), dim=1)
         tn = torch.stack(tuple(x_i * mask[:, 0] for x_i in torch.unbind(tn, dim=1)), dim=1)
 
+    # print("squarin")
     if square:
         tp = tp ** 2
         fp = fp ** 2
@@ -147,11 +163,12 @@ def get_tp_fp_fn_tn(net_output, gt, axes=None, mask=None, square=False):
         tn = tn ** 2
 
     if len(axes) > 0:
+        # print("summin")
         tp = sum_tensor(tp, axes, keepdim=False)
         fp = sum_tensor(fp, axes, keepdim=False)
         fn = sum_tensor(fn, axes, keepdim=False)
         tn = sum_tensor(tn, axes, keepdim=False)
-
+        # print("done sommun")
     return tp, fp, fn, tn
 
 
@@ -190,7 +207,7 @@ class SoftDiceLoss(nn.Module):
             else:
                 dc = dc[:, 1:]
         dc = dc.mean()
-
+        # print("done the dice loss")
         return -dc
 
 
@@ -424,3 +441,39 @@ class DC_and_topk_loss(nn.Module):
         else:
             raise NotImplementedError("nah son") # reserved for other stuff (later?)
         return result
+
+class DC_and_HD_loss(nn.Module):
+    def __init__(self, soft_dice_kwargs, ce_kwargs, alpha=0.1):
+        super(DC_and_HD_loss, self).__init__()
+        self.alpha = alpha
+        self.dc = DC_and_CE_loss(soft_dice_kwargs, ce_kwargs)
+        self.hd = HausdorffLoss(apply_nonlin=softmax_helper)
+
+    def forward(self, net_output, target):
+        dc_loss = self.dc(net_output, target)
+        hd_loss = self.hd(net_output, target)
+        # print("loss")
+        # print(hd_loss)
+        # print((1 - self.alpha) * hd_loss)
+        # print(dc_loss)
+        # print(self.alpha*(dc_loss))
+        loss = self.alpha*(dc_loss) + (1 - self.alpha) * hd_loss
+        return loss
+
+class DC_and_Speckle_loss(nn.Module):
+    def __init__(self, soft_dice_kwargs, ce_kwargs, alpha=0.5):
+        super(DC_and_Speckle_loss, self).__init__()
+        print("ALPHA", alpha)
+        self.alpha = alpha
+        self.dc = DC_and_CE_loss(soft_dice_kwargs, ce_kwargs)
+        self.speckle = SpeckleLoss(apply_nonlin=softmax_helper)
+
+    def forward(self, net_output, target, img):
+        dc_loss = self.dc(net_output, target) 
+        sk_loss = self.speckle(net_output, target, img)
+        # print(dc_loss, sk_loss)
+        # print(dc_loss.requires_grad)
+        # print(sk_loss.requires_grad)
+        loss = self.alpha * (dc_loss) + (1 - self.alpha) * sk_loss
+        # print(loss)
+        return loss

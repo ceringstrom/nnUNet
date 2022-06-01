@@ -25,7 +25,7 @@ class TopKLoss(RobustCrossEntropyLoss):
         self.k = k
         super(TopKLoss, self).__init__(weight, False, ignore_index, reduce=False)
 
-    def forward(self, inp, target):
+    def forward(self, output, target):
         target = target[:, 0].long()
         res = super(TopKLoss, self).forward(inp, target)
         num_voxels = np.prod(res.shape, dtype=np.int64)

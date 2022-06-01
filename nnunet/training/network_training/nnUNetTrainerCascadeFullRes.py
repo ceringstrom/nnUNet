@@ -200,7 +200,6 @@ class nnUNetTrainerCascadeFullRes(nnUNetTrainer):
             seg_from_prev_stage = np.load(join(self.folder_with_segs_from_prev_stage,
                                                k + "_segFromPrevStage.npz"))['data'][None]
 
-            print(data.shape)
             data[-1][data[-1] == -1] = 0
             data_for_net = np.concatenate((data[:-1], to_one_hot(seg_from_prev_stage[0], range(1, self.num_classes))))
 

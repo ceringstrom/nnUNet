@@ -123,6 +123,7 @@ def verify_dataset_integrity(folder):
     for c in expected_train_identifiers:
         print("checking case", c)
         # check if all files are present
+        print(num_modalities)
         expected_label_file = join(folder, "labelsTr", c + ".nii.gz")
         label_files.append(expected_label_file)
         expected_image_files = [join(folder, "imagesTr", c + "_%04.0d.nii.gz" % i) for i in range(num_modalities)]
